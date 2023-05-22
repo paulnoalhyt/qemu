@@ -24,6 +24,7 @@
 /* User-mode specific state */
 typedef struct {
     int fd;
+    int socket_fd;
     char *socket_path;
     int running_state;
 } GDBUserState;
@@ -115,6 +116,8 @@ void gdb_exit(int code)
     }
 }
 
+static bool gdb_accept_tcp(int gdb_fd, bool reopen);
+
 int gdb_handlesig(CPUState *cpu, int sig)
 {
     char buf[256];
@@ -160,14 +163,17 @@ int gdb_handlesig(CPUState *cpu, int sig)
             }
         } else {
             /*
-             * XXX: Connection closed.  Should probably wait for another
-             * connection before continuing.
+             * Connection closed.  Wait for another connection
+	     * before continuing.
              */
             if (n == 0) {
                 close(gdbserver_user_state.fd);
             }
-            gdbserver_user_state.fd = -1;
-            return sig;
+            if (!gdb_accept_tcp(gdbserver_user_state.socket_fd, true)) {
+                close(gdbserver_user_state.fd);
+                gdbserver_user_state.fd = -1;
+                return sig;
+            }
         }
     }
     sig = gdbserver_state.signal;
@@ -249,7 +255,7 @@ static int gdbserver_open_socket(const char *path)
     return fd;
 }
 
-static bool gdb_accept_tcp(int gdb_fd)
+static bool gdb_accept_tcp(int gdb_fd, bool reopen)
 {
     struct sockaddr_in sockaddr = {};
     socklen_t len;
@@ -274,7 +280,10 @@ static bool gdb_accept_tcp(int gdb_fd)
         return false;
     }
 
-    gdb_accept_init(fd);
+    if (reopen)
+        gdbserver_user_state.fd = fd;
+    else
+        gdb_accept_init(fd);
     return true;
 }
 
@@ -326,7 +335,8 @@ int gdbserver_start(const char *port_or_path)
         return -1;
     }
 
-    if (port > 0 && gdb_accept_tcp(gdb_fd)) {
+    if (port > 0 && gdb_accept_tcp(gdb_fd, false)) {
+        gdbserver_user_state.socket_fd = gdb_fd;
         return 0;
     } else if (gdb_accept_socket(gdb_fd)) {
         gdbserver_user_state.socket_path = g_strdup(port_or_path);
