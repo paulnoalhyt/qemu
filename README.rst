@@ -1,3 +1,19 @@
+============================
+Paul's building instructions
+============================
+
+.. code-block:: shell
+
+  apt update
+  apt install -y wget git python3 make ninja-build gcc pkg-config libglib2.0-dev build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev flex bison
+  git clone https://github.com/paulnoalhyt/qemu.git 
+  cd qemu
+  git submodule init
+  git submodule update --recursive
+  ./configure
+  make -j32
+
+  
 ===========
 QEMU README
 ===========
