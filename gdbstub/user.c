@@ -166,23 +166,24 @@ int gdb_handlesig(CPUState *cpu, int sig)
         } else {
             /*
              * Connection closed.  Wait for another connection
-	     * before continuing.
+             * before continuing.
              */
             if (n == 0) {
                 close(gdbserver_user_state.fd);
             }
             bool reopen_error = false;
-	    if (gdbserver_user_state.socket_path){
+            if (gdbserver_user_state.socket_path) {
                 unlink(gdbserver_user_state.socket_path);
                 int gdb_fd;
-                gdb_fd = gdbserver_open_socket(gdbserver_user_state.socket_path);
-                if (gdb_fd < 0 || !gdb_accept_socket(gdb_fd, true)){
+                gdb_fd =
+                    gdbserver_open_socket(gdbserver_user_state.socket_path);
+                if (gdb_fd < 0 || !gdb_accept_socket(gdb_fd, true)) {
                     reopen_error = true;
                 }
-	    } else if (!gdb_accept_tcp(gdbserver_user_state.tcp_fd, true)) {
+            } else if (!gdb_accept_tcp(gdbserver_user_state.tcp_fd, true)) {
                 reopen_error = true;
             }
-	    if (reopen_error) {
+            if (reopen_error) {
                 close(gdbserver_user_state.fd);
                 gdbserver_user_state.fd = -1;
                 return sig;
