@@ -24,7 +24,7 @@
 /* User-mode specific state */
 typedef struct {
     int fd;
-    int socket_fd;
+    int tcp_fd;
     char *socket_path;
     int running_state;
 } GDBUserState;
@@ -117,6 +117,8 @@ void gdb_exit(int code)
 }
 
 static bool gdb_accept_tcp(int gdb_fd, bool reopen);
+static bool gdb_accept_socket(int gdb_fd, bool reopen);
+static int gdbserver_open_socket(const char *path);
 
 int gdb_handlesig(CPUState *cpu, int sig)
 {
@@ -169,7 +171,18 @@ int gdb_handlesig(CPUState *cpu, int sig)
             if (n == 0) {
                 close(gdbserver_user_state.fd);
             }
-            if (!gdb_accept_tcp(gdbserver_user_state.socket_fd, true)) {
+            bool reopen_error = false;
+	    if (gdbserver_user_state.socket_path){
+                unlink(gdbserver_user_state.socket_path);
+                int gdb_fd;
+                gdb_fd = gdbserver_open_socket(gdbserver_user_state.socket_path);
+                if (gdb_fd < 0 || !gdb_accept_socket(gdb_fd, true)){
+                    reopen_error = true;
+                }
+	    } else if (!gdb_accept_tcp(gdbserver_user_state.tcp_fd, true)) {
+                reopen_error = true;
+            }
+	    if (reopen_error) {
                 close(gdbserver_user_state.fd);
                 gdbserver_user_state.fd = -1;
                 return sig;
@@ -207,7 +220,7 @@ static void gdb_accept_init(int fd)
     gdb_has_xml = false;
 }
 
-static bool gdb_accept_socket(int gdb_fd)
+static bool gdb_accept_socket(int gdb_fd, bool reopen)
 {
     int fd;
 
@@ -221,8 +234,11 @@ static bool gdb_accept_socket(int gdb_fd)
             break;
         }
     }
-
-    gdb_accept_init(fd);
+    if (reopen) {
+        gdbserver_user_state.fd = fd;
+    } else {
+        gdb_accept_init(fd);
+    }
     return true;
 }
 
@@ -280,10 +296,11 @@ static bool gdb_accept_tcp(int gdb_fd, bool reopen)
         return false;
     }
 
-    if (reopen)
+    if (reopen) {
         gdbserver_user_state.fd = fd;
-    else
+    } else {
         gdb_accept_init(fd);
+    }
     return true;
 }
 
@@ -336,9 +353,9 @@ int gdbserver_start(const char *port_or_path)
     }
 
     if (port > 0 && gdb_accept_tcp(gdb_fd, false)) {
-        gdbserver_user_state.socket_fd = gdb_fd;
+        gdbserver_user_state.tcp_fd = gdb_fd;
         return 0;
-    } else if (gdb_accept_socket(gdb_fd)) {
+    } else if (gdb_accept_socket(gdb_fd, false)) {
         gdbserver_user_state.socket_path = g_strdup(port_or_path);
         return 0;
     }
