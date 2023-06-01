@@ -8347,7 +8347,8 @@ static int open_hardware(CPUArchState *cpu_env, int fd)
 }
 #endif
 
-static int do_openat(CPUArchState *cpu_env, int dirfd, const char *pathname, int flags, mode_t mode)
+int do_openat(CPUArchState *cpu_env, int dirfd, const char *pathname,
+       int flags, mode_t mode)
 {
     struct fake_open {
         const char *filename;
